@@ -118,7 +118,7 @@ try:
 
     ax.set_title('Screw Flight Flat Pattern (Dimensions in mm)')
     ax.legend()
-    ax.grid(true) # Show the grid lines
+    ax.grid # Show the grid lines
 
     st.pyplot(fig)
 
