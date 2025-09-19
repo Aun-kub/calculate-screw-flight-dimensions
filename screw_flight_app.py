@@ -1,6 +1,5 @@
 import streamlit as st
 import numpy as np
-Traceback:
 File "/mount/src/calculate-screw-flight-dimensions/screw_flight_app.py", line 3, in <module>
     import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
