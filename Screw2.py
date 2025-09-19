@@ -2,8 +2,9 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import pandas as pd # Import pandas for displaying results in a DataFrame
+import pandas as pd
 
+# Define the calculation function (assuming this is the correct one based on previous interactions)
 def calculate_screw_flight_size(outer_diameter_mm, inner_diameter_mm, pitch_mm):
     """
     Calculates the dimensions of the flat pattern for a screw flight.
@@ -12,6 +13,7 @@ def calculate_screw_flight_size(outer_diameter_mm, inner_diameter_mm, pitch_mm):
         outer_diameter_mm: The outer diameter of the screw flight in millimeters.
         inner_diameter_mm: The inner diameter of the screw flight in millimeters.
         pitch_mm: The pitch of the screw flight in millimeters.
+        # Note: Thickness (t) is included as an input in the app but not used in this specific calculation function.
 
     Returns:
         A dictionary containing the calculated dimensions in millimeters and degrees, or an error message.
@@ -103,45 +105,59 @@ def visualize_screw_flight(calculated_results):
     y_outer_end = R_outer_mm * np.sin(theta_segment_rad)
     ax.plot([x_inner_end, x_outer_end], [y_inner_end, y_outer_end], color='green', lw=2)
 
-    # Add labels for radii and angle
-    # Position the angle label in the middle of the segment
-    angle_label_position_rad = theta_segment_rad / 2
-    ax.text(R_outer_mm * np.cos(angle_label_position_rad) * 0.6, R_outer_mm * np.sin(angle_label_position_rad) * 0.6,
-            f'R_outer: {R_outer_mm:.2f} mm', color='red', fontsize=10)
-    ax.text(R_inner_mm * np.cos(angle_label_position_rad) * 0.6, R_inner_mm * np.sin(angle_label_position_rad) * 0.6,
-            f'R_inner: {R_inner_mm:.2f} mm', color='blue', fontsize=10)
-    ax.text(R_outer_mm * np.cos(theta_segment_rad) * 0.8, R_outer_mm * np.sin(theta_segment_rad) * 0.8,
-            f'{theta_segment_deg:.2f}°', color='purple', fontsize=10)
+    # Add labels for key dimensions on the plot
+    # Label for R_outer (on the outer arc)
+    outer_label_angle = theta_segment_rad / 4 # Position the label along the arc
+    ax.text(R_outer_mm * np.cos(outer_label_angle), R_outer_mm * np.sin(outer_label_angle),
+            f'R_outer: {R_outer_mm:.2f} mm', color='red', fontsize=10, ha='center', va='bottom')
+
+    # Label for R_inner (on the inner arc)
+    inner_label_angle = theta_segment_rad / 4
+    ax.text(R_inner_mm * np.cos(inner_label_angle), R_inner_mm * np.sin(inner_label_angle),
+            f'R_inner: {R_inner_mm:.2f} mm', color='blue', fontsize=10, ha='center', va='top')
+
+    # Label for h (flight width)
+    mid_radius = (R_outer_mm + R_inner_mm) / 2
+    mid_angle = theta_segment_rad * 0.9 # Position towards the end of the segment
+    ax.text(mid_radius * np.cos(mid_angle), mid_radius * np.sin(mid_angle),
+            f'h: {calculated_results["h_mm"]:.2f} mm', color='purple', fontsize=10, ha='center', va='center')
+
+    # Label for the segment angle
+    ax.text(R_outer_mm * np.cos(theta_segment_rad * 0.5) * 0.8 , R_outer_mm * np.sin(theta_segment_rad * 0.5) * 0.8,
+            f'{theta_segment_deg:.2f}°', color='darkgreen', fontsize=10, ha='center', va='center')
 
 
     # Set plot limits and aspect ratio
     max_radius = max(R_outer_mm, R_inner_mm)
-    # Adjust limits to accommodate the full segment visualization
-    ax.set_xlim(-max_radius * 1.1, max_radius * 1.1)
-    ax.set_ylim(-max_radius * 1.1, max_radius * 1.1)
+    # Adjust limits to accommodate the full segment visualization and labels
+    padding = max_radius * 0.2
+    ax.set_xlim(-max_radius - padding, max_radius + padding)
+    ax.set_ylim(-max_radius - padding, max_radius + padding)
     ax.set_aspect('equal', adjustable='box')
 
     # Add title and labels
-    ax.set_title('Flat Pattern of Screw Flight Segment')
+    ax.set_title('Flat Pattern of Screw Flight Segment with Dimensions')
     ax.set_xlabel('X (mm)')
     ax.set_ylabel('Y (mm)')
     ax.grid(True)
 
     return fig
 
+
 # --- Streamlit Application Interface ---
 st.title('Screw Flight Size Calculator and Visualizer')
 
 st.write("Enter the dimensions of the screw flight to calculate the flat pattern size.")
 
-# Input widgets
-outer_diameter = st.number_input('Outer Diameter (mm)', min_value=0.1, format="%.2f")
-inner_diameter = st.number_input('Inner Diameter (mm)', min_value=0.1, format="%.2f")
-pitch = st.number_input('Pitch (mm)', min_value=0.1, format="%.2f")
+# Input widgets for D, d, P, and t
+outer_diameter = st.number_input('Outer Diameter (D) (mm)', min_value=0.1, format="%.2f")
+inner_diameter = st.number_input('Inner Diameter (d) (mm)', min_value=0.1, format="%.2f")
+pitch = st.number_input('Pitch (P) (mm)', min_value=0.1, format="%.2f")
+thickness = st.number_input('Thickness (t) (mm)', min_value=0.1, format="%.2f") # Input for thickness
 
 # Calculation and Visualization Button
 if st.button('Calculate and Visualize'):
-    # Perform calculation
+    # Perform calculation using D, d, and P
     results = calculate_screw_flight_size(outer_diameter, inner_diameter, pitch)
 
     # Display results or error
@@ -154,12 +170,16 @@ if st.button('Calculate and Visualize'):
             'Dimension': ['Outer Radius (mm)', 'Inner Radius (mm)', 'Outer Edge Length (mm)',
                           'Inner Edge Length (mm)', 'Sector Angle (degrees)', 'Flight Width (mm)'],
             'Value': [results['R_outer_mm'], results['R_inner_mm'], results['L_outer_mm'],
-                      results['L_inner_mm'], results['theta_segment_deg'], results['h_mm']] # Display segment angle in the table
+                      results['L_inner_mm'], results['theta_segment_deg'], results['h_mm']]
         })
         st.dataframe(results_df.set_index('Dimension'))
+
+        # Display thickness separately as it's not in the calculation output dictionary
+        st.write(f"Input Thickness (t): {thickness:.2f} mm")
 
 
         st.subheader("Flat Pattern Visualization:")
         # Generate and display the visualization
         fig = visualize_screw_flight(results)
         st.pyplot(fig)
+     
