@@ -1,7 +1,5 @@
 import streamlit as st
 import numpy as np
-File "/mount/src/calculate-screw-flight-dimensions/screw_flight_app.py", line 3, in <module>
-    import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import pandas as pd
@@ -29,190 +27,110 @@ def calculate_screw_flight_size(outer_diameter_mm, inner_diameter_mm, pitch_mm, 
     if inner_diameter_mm >= outer_diameter_mm:
         return {"error": "Inner diameter must be less than outer diameter."}
     # The check for thickness being too large needs to be adjusted based on the new definition of h
-    if (thickness_mm * 2) >= (outer_diameter_mm - inner_diameter_mm): # This check is still valid as it relates to the full width
-         return {"error": "Thickness is too large for the given inner and outer diameters."}
+    if (thickness_mm * 2) >= (outer_diameter_mm - inner_diameter_mm):
+         return {"error": "Thickness must be less than half of the difference between outer and inner diameters."}
+
+    try:
+        # Calculate radii considering thickness
+        R_outer = outer_diameter_mm / 2
+        R_inner = inner_diameter_mm / 2
+
+        # Calculate circumference at the mean radius (R_mean)
+        R_mean = (R_outer + R_inner) / 2
+        circumference_mean = 2 * np.pi * R_mean
+
+        # Calculate the slant height (h)
+        h = np.sqrt(pitch_mm**2 + circumference_mean**2)
+
+        # Calculate the total angle (theta) for the full flight turn in degrees
+        theta = 360 * (h / R_mean) / (circumference_mean / R_mean) # This simplifies to 360 * h / circumference_mean
+        theta = 360 * h / circumference_mean
+
+        # Calculate the outer arc length (S_outer)
+        S_outer = (theta / 360) * (2 * np.pi * R_outer)
+
+        # Calculate the inner arc length (S_inner)
+        S_inner = (theta / 360) * (2 * np.pi * R_inner)
+
+        return {
+            "R_outer_flat": R_outer * (theta / 360) * (2 * np.pi / theta),  # This simplifies to R_outer
+            "R_inner_flat": R_inner * (theta / 360) * (2 * np.pi / theta),  # This simplifies to R_inner
+            "theta_degrees": theta,
+            "S_outer_arc_length": S_outer,
+            "S_inner_arc_length": S_inner,
+            "slant_height": h,
+            "mean_radius": R_mean,
+            "circumference_mean": circumference_mean
+        }
+    except Exception as e:
+        return {"error": f"An error occurred during calculation: {e}"}
 
 
-    # Calculate the width of the screw flight (h) using the formula: h = (D - d) / 2
-    h_mm = (outer_diameter_mm - inner_diameter_mm) / 2
-
-    # Calculate the length of the outer edge (L_outer) and inner edge (L_inner) of the developed blank in millimeters.
-    L_outer_mm = np.sqrt((np.pi * outer_diameter_mm)**2 + pitch_mm**2)
-    L_inner_mm = np.sqrt((np.pi * inner_diameter_mm)**2 + pitch_mm**2)
-
-    # Calculate the inner radius (R_inner) using the NEW formula: R_Inner = ((L_inner * h) / (L_outer - L_inner)) - t
-    denominator = (L_outer_mm - L_inner_mm)
-    if abs(denominator) < 1e-9: # Use a small tolerance for floating point comparison
-         return {"error": "Calculation error: denominator for R_inner calculation is too close to zero."}
-    R_inner_mm = ((L_inner_mm * h_mm) / denominator) - thickness_mm
-
-
-    # Calculate the outer radius (R_outer) using the NEW formula: R_outer = R_inner + h
-    R_outer_mm = R_inner_mm + h_mm
-
-    # Calculate the angle of the sector to be removed from the annular blank (theta) in degrees.
-    # The angle calculation depends on R_outer and pitch. Using the cone development method formula:
-    if R_outer_mm <= 0: # Prevent division by zero or log of zero/negative in degrees calculation
-         return {"error": "Calculated outer radius is not positive, cannot calculate angle."}
-    theta_removed_deg = np.degrees(np.arctan(pitch_mm / (np.pi * R_outer_mm)))
-    theta_segment_deg = 360 - theta_removed_deg
-
-
-    return {
-        "outer_diameter_mm": outer_diameter_mm, # Include original inputs in the results
-        "inner_diameter_mm": inner_diameter_mm,
-        "pitch_mm": pitch_mm,
-        "R_outer_mm": R_outer_mm,
-        "R_inner_mm": R_inner_mm,
-        "L_outer_mm": L_outer_mm, # Note: L_outer and L_inner are based on original D and d, not derived from the new R_outer and R_inner
-        "L_inner_mm": L_inner_mm,
-        "theta_removed_deg": theta_removed_deg, # Include the removed angle for reference
-        "theta_segment_deg": theta_segment_deg, # Include the segment angle for visualization
-        "h_mm": h_mm, # Include the new h in the output
-        "thickness_mm": thickness_mm # Include thickness in output
-    }
-
-def visualize_screw_flight(calculated_results):
+# Function to draw the flat pattern
+def draw_flat_pattern(R_outer_flat, R_inner_flat, theta_degrees):
     """
-    Generates a visual representation of the flat pattern of the screw flight segment with dimensions listed.
+    Draws the flat pattern of the screw flight using Matplotlib.
 
     Args:
-        calculated_results: A dictionary containing the calculated dimensions.
-
-    Returns:
-        A matplotlib figure.
+        R_outer_flat: The outer radius of the flat pattern.
+        R_inner_flat: The inner radius of the flat pattern.
+        theta_degrees: The angle of the flat pattern in degrees.
     """
-    R_outer_mm = calculated_results['R_outer_mm']
-    R_inner_mm = calculated_results['R_inner_mm']
-    theta_segment_deg = calculated_results['theta_segment_deg'] # Use the segment angle for visualization
-    thickness_mm = calculated_results['thickness_mm'] # Get thickness for display
-    h_mm = calculated_results['h_mm'] # Get the new h for visualization purposes
-
-
-    # Convert angle from degrees to radians for plotting
-    theta_segment_rad = np.deg2rad(theta_segment_deg)
-
-    # Create a figure and axes for the plot
     fig, ax = plt.subplots(1)
-
-    # Plot the inner arc
-    inner_arc = patches.Arc((0, 0), 2 * R_inner_mm, 2 * R_inner_mm,
-                            angle=0, theta1=0, theta2=theta_segment_deg, color='blue', lw=2)
-    ax.add_patch(inner_arc)
-
-    # Plot the outer arc
-    outer_arc = patches.Arc((0, 0), 2 * R_outer_mm, 2 * R_outer_mm,
-                            angle=0, theta1=0, theta2=theta_segment_deg, color='red', lw=2)
-    ax.add_patch(outer_arc)
-
-    # Connect the endpoints of the arcs to form the radial edges
-    # Starting point (at angle 0)
-    x_inner_start = R_inner_mm * np.cos(0)
-    y_inner_start = R_inner_mm * np.sin(0)
-    x_outer_start = R_outer_mm * np.cos(0)
-    y_outer_start = R_outer_mm * np.sin(0)
-    ax.plot([x_inner_start, x_outer_start], [y_inner_start, y_outer_start], color='green', lw=2)
-
-    # Ending point (at angle theta_segment_rad)
-    x_inner_end = R_inner_mm * np.cos(theta_segment_rad)
-    y_inner_end = R_inner_mm * np.sin(theta_segment_rad)
-    x_outer_end = R_outer_mm * np.cos(theta_segment_rad)
-    y_outer_end = R_outer_mm * np.sin(theta_segment_rad)
-    ax.plot([x_inner_end, x_outer_end], [y_inner_end, y_outer_end], color='green', lw=2)
-
-    # Add dimensions as text in a column on the right side with colors
-    # Use ax.text for each line with specific color and position
-    text_x = 1.02 # right edge of the axes, slightly outside
-    text_y_start = 0.5 # vertical center of the axes
-    line_height = 0.05 # spacing between lines in axes coordinates
-
-    ax.text(text_x, text_y_start + line_height * 3, f'Outer Diameter: {R_outer_mm * 2:.2f} mm.', # Use calculated D
-            verticalalignment='center', horizontalalignment='left',
-            transform=ax.transAxes, color='red', fontsize=10)
-
-    ax.text(text_x, text_y_start + line_height * 2, f'Inner Diameter: {R_inner_mm * 2:.2f} mm.', # Use calculated d
-            verticalalignment='center', horizontalalignment='left',
-            transform=ax.transAxes, color='blue', fontsize=10)
-
-    ax.text(text_x, text_y_start + line_height * 1, f'Flight Width: {h_mm:.2f} mm.', # Changed label to Flight Width
-            verticalalignment='center', horizontalalignment='left',
-            transform=ax.transAxes, color='purple', fontsize=10) # Use purple for flight width
-
-    ax.text(text_x, text_y_start + line_height * 0, f'Segment Angle: {theta_segment_deg:.2f}°',
-            verticalalignment='center', horizontalalignment='left',
-            transform=ax.transAxes, color='darkgreen', fontsize=10) # Use darkgreen for segment angle
-
-    ax.text(text_x, text_y_start - line_height * 1, f'Removed Angle: {calculated_results["theta_removed_deg"]:.2f}°',
-            verticalalignment='center', horizontalalignment='left',
-            transform=ax.transAxes, color='gray', fontsize=10) # Use gray for removed angle
-
-    ax.text(text_x, text_y_start - line_height * 2, f'Thickness: {thickness_mm:.2f} mm.', # Moved mm. after value
-            verticalalignment='center', horizontalalignment='left',
-            transform=ax.transAxes, color='orange', fontsize=10) # Use orange for thickness
-
-
-    # Add visual representation of h (dashed line and arrow) between arcs
-    mid_angle_rad = theta_segment_rad * 0.5
-    arrow_start_x = R_inner_mm * np.cos(mid_angle_rad)
-    arrow_start_y = R_inner_mm * np.sin(mid_angle_rad)
-    arrow_end_x = R_outer_mm * np.cos(mid_angle_rad)
-    arrow_end_y = R_outer_mm * np.sin(mid_angle_rad)
-
-    ax.annotate('', xy=(arrow_end_x, arrow_end_y), xytext=(arrow_start_x, arrow_start_y),
-                arrowprops=dict(arrowstyle='<->', color='purple', lw=1.5))
-
-
-    # Set plot limits and aspect ratio
-    max_radius = max(R_outer_mm, R_inner_mm)
-    # Adjust limits to accommodate the full segment visualization and labels
-    padding = max_radius * 0.6 # Increased padding to make space for text on the right
-    ax.set_xlim(-max_radius - padding * 0.1, max_radius + padding) # More padding on the right
-    ax.set_ylim(-max_radius - padding * 0.1, max_radius + padding * 0.1)
     ax.set_aspect('equal', adjustable='box')
 
-    # Add title and labels
-    ax.set_title('Flat Pattern of Screw Flight Segment with Dimensions')
-    ax.set_xlabel('X (mm)')
-    ax.set_ylabel('Y (mm)')
-    ax.grid(True)
+    # Convert angle to radians
+    theta_radians = np.deg2rad(theta_degrees)
 
-    return fig
+    # Draw the arcs
+    outer_arc = patches.Arc((0, 0), 2 * R_outer_flat, 2 * R_outer_flat,
+                            angle=0, theta1=0, theta2=theta_degrees, linewidth=2, fill=False)
+    inner_arc = patches.Arc((0, 0), 2 * R_inner_flat, 2 * R_inner_flat,
+                            angle=0, theta1=0, theta2=theta_degrees, linewidth=2, fill=False)
 
+    ax.add_patch(outer_arc)
+    ax.add_patch(inner_arc)
 
-# --- Streamlit Application Interface ---
-st.title('Screw Flight Size Calculator and Visualizer')
+    # Draw the connecting lines
+    x_outer_end = R_outer_flat * np.cos(theta_radians)
+    y_outer_end = R_outer_flat * np.sin(theta_radians)
+    x_inner_end = R_inner_flat * np.cos(theta_radians)
+    y_inner_end = R_inner_flat * np.sin(theta_radians)
 
-st.write("Enter the dimensions of the screw flight to calculate the flat pattern size.")
+    ax.plot([R_inner_flat, R_outer_flat], [0, 0], 'k-', linewidth=2)
+    ax.plot([x_inner_end, x_outer_end], [y_inner_end, y_outer_end], 'k-', linewidth=2)
 
-# Input widgets for D, d, P, and t
-outer_diameter = st.number_input('Outer Diameter (D) (mm)', min_value=0.1, format="%.2f")
-inner_diameter = st.number_input('Inner Diameter (d) (mm)', min_value=0.1, format="%.2f")
-pitch = st.number_input('Pitch (P) (mm)', min_value=0.1, format="%.2f")
-thickness = st.number_input('Thickness (t) (mm)', min_value=0.0, format="%.2f") # thickness can be 0 or positive
+    # Set plot limits
+    max_dim = max(R_outer_flat, R_outer_flat * np.sin(theta_radians)) * 1.1
+    ax.set_xlim(-max_dim, max_dim)
+    ax.set_ylim(-max_dim, max_dim)
 
-# Calculation and Visualization Button
-if st.button('Calculate and Visualize'):
-    # Perform calculation using D, d, P, and t
+    st.pyplot(fig)
+
+# Streamlit app layout
+st.title("Screw Flight Dimension Calculator")
+
+st.sidebar.header("Input Parameters (in mm)")
+outer_diameter = st.sidebar.number_input("Outer Diameter", min_value=0.1, value=100.0)
+inner_diameter = st.sidebar.number_input("Inner Diameter", min_value=0.1, value=50.0)
+pitch = st.sidebar.number_input("Pitch", min_value=0.1, value=75.0)
+thickness = st.sidebar.number_input("Thickness", min_value=0.0, value=3.0)
+
+if st.sidebar.button("Calculate"):
     results = calculate_screw_flight_size(outer_diameter, inner_diameter, pitch, thickness)
 
-    # Display results or error
     if "error" in results:
         st.error(results["error"])
     else:
-        st.subheader("Calculated Dimensions:")
-        # Display results in a table format using a DataFrame
-        results_df = pd.DataFrame({
-            'Dimension': ['Outer Diameter (mm)', 'Inner Diameter (mm)', 'Outer Edge Length (mm)',
-                          'Inner Edge Length (mm)', 'Sector Angle (Segment) (degrees)', 'Sector Angle (Removed) (degrees)', 'Flight Width (mm)', 'Thickness (mm)'],
-            'Value': [results['R_outer_mm'] * 2, results['R_inner_mm'] * 2, results['L_outer_mm'],
-                      results['L_inner_mm'], results['theta_segment_deg'], results['theta_removed_deg'], results['h_mm']*2, results['thickness_mm']] # Display diameters and h*2 here
-        })
-        # Apply formatting to the 'Value' column after creating the DataFrame
-        results_df['Value'] = results_df['Value'].map('{:.2f}'.format)
-        st.dataframe(results_df.set_index('Dimension'))
+        st.subheader("Calculated Dimensions (Flat Pattern)")
+        st.write(f"Outer Radius (R_outer_flat): {results['R_outer_flat']:.2f} mm")
+        st.write(f"Inner Radius (R_inner_flat): {results['R_inner_flat']:.2f} mm")
+        st.write(f"Total Angle (theta): {results['theta_degrees']:.2f} degrees")
+        st.write(f"Outer Arc Length (S_outer): {results['S_outer_arc_length']:.2f} mm")
+        st.write(f"Inner Arc Length (S_inner): {results['S_inner_arc_length']:.2f} mm")
+        st.write(f"Slant Height (h): {results['slant_height']:.2f} mm")
+        st.write(f"Mean Radius (R_mean): {results['mean_radius']:.2f} mm")
+        st.write(f"Circumference Mean: {results['circumference_mean']:.2f} mm")
 
-
-        st.subheader("Flat Pattern Visualization:")
-        # Generate and display the visualization
-        fig = visualize_screw_flight(results)
-        st.pyplot(fig)
+        st.subheader("Flat Pattern Visualization")
+        draw_flat_pattern(results['R_outer_flat'], results['R_inner_flat'], results['theta_degrees'])
