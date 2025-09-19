@@ -129,7 +129,7 @@ if st.sidebar.button("Calculate"):
         st.write(f"Outer Arc Length (S_outer): {results['S_outer_arc_length']:.2f} mm")
         st.write(f"Inner Arc Length (S_inner): {results['S_inner_arc_length']:.2f} mm")
         st.write(f"Slant Height (h): {results['slant_height']:.2f} mm")
-        st.write(f"Mean Radius (R_mean): {results['mean_radius']:.2f} mm")
+        st.write(f"Mean Radius (R_mean): {results['R_mean']:.2f} mm")
         st.write(f"Circumference Mean: {results['circumference_mean']:.2f} mm")
 
         st.subheader("Flat Pattern Visualization")
