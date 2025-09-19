@@ -1,5 +1,5 @@
 # Save the content of cell Bq_yPwI-2TFT to a Python file
-%%writefile screw_flight_app.py
+writefile screw_flight_app.py
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
