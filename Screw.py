@@ -1,7 +1,5 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import pandas as pd
 
 # Define the calculation function (assuming this is the correct one based on previous interactions)
